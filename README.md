@@ -1,101 +1,109 @@
-# 🏥 Medical Insurance Cost Analysis
+# 🩺 Costos de seguro médico · Parte 1: limpieza y análisis exploratorio
 
-Proyecto personal de práctica de **limpieza, validación y análisis exploratorio de datos (EDA)**, desarrollado en el marco del **Google Advanced Data Analytics Professional Certificate**.
+> **Versión 2.** Auditoría y limpieza de un dataset de seguros médicos, el hallazgo de **tres grupos de costo** (tabaquismo × obesidad) y la corrección de una conclusión sobre regiones: el sudeste parece el más caro, pero a igual perfil la diferencia se invierte.
 
-El objetivo es tomar un dataset "crudo" de costos de seguros médicos y aplicar un flujo completo de trabajo típico de un analista de datos: exploración, detección de problemas, limpieza, transformación de variables y visualización de insights.
+![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)
+![pandas](https://img.shields.io/badge/pandas-2.x-150458?logo=pandas&logoColor=white)
+![Versión](https://img.shields.io/badge/versión-2.0-2a78d6)
+![Estado](https://img.shields.io/badge/estado-completado-1baf7a)
+![Licencia](https://img.shields.io/badge/licencia-MIT-lightgrey)
 
-## 📌 Objetivo del proyecto
+![Portada](images/00_portada.png)
 
-- Explorar y diagnosticar la calidad de un dataset real (duplicados, valores faltantes, inconsistencias).
-- Limpiar y estandarizar los datos.
-- Transformar variables categóricas a numéricas (Label Encoding y One-Hot Encoding).
-- Generar visualizaciones que respondan preguntas de negocio: ¿qué factores influyen más en el costo del seguro?
+**Serie de dos partes:** Parte 1 (este repositorio) · [Parte 2: regresión lineal →](https://github.com/Cristobal-111/regresion-lineal-seguros)
+
+---
+
+## 🎯 Objetivo
+
+Antes de construir un modelo de tarificación, entender **qué explica el costo anual del seguro médico**: auditar y limpiar los datos, transformar variables correctamente y responder preguntas de negocio con evidencia.
+
+## 🔁 Qué cambió respecto de la versión 1
+
+| | Versión 1 | Versión 2 |
+|---|---|---|
+| Codificación de región | 0, 1, 2, 3 (incluida en la correlación) | **One-hot** (es nominal, no tiene orden) |
+| ¿Diferencias entre regiones? | "No significativas", sin prueba | **ANOVA, Kruskal-Wallis y comparación a igual perfil** |
+| Hallazgo principal | Fumar multiplica el costo ×3,8 | **Tres grupos**: la obesidad pesa solo en fumadores |
+| Entregable | Script `.py` | Notebook ejecutado con resultados y explicación |
+
+La versión 1 se conserva en [`version_original/`](version_original/).
+
+## 🧹 Auditoría y limpieza
+
+- **1.338 registros**, 7 variables, **sin faltantes**, sin valores negativos ni fuera de rango.
+- **1 duplicado exacto** (hasta en los centavos del costo), eliminado: quedan 1.337.
+- `sex` y `smoker` → 0/1 · `region` → **one-hot** · nuevas variables `obesidad` (IMC ≥ 30, umbral OMS) y `grupo_riesgo`.
+- El dataset limpio se guarda en `data/insurance_cleaned.csv`.
+
+## 📊 Hallazgo central: tres grupos de costo
+
+![Tres grupos de costo](images/01_tres_grupos_costo.png)
+
+| Grupo | Asegurados | Costo mediano | Costo promedio vs. no fumar |
+|---|---|---|---|
+| No fuma | 1.063 (79,5 %) | $7.346 | 1,0× |
+| Fuma, sin obesidad | 129 (9,6 %) | $20.167 | 2,5× |
+| Fuma con obesidad | 145 (10,8 %) | $40.904 | 4,9× |
+
+Fumar multiplica el costo promedio por 3,8, pero los fumadores se separan en **dos bandas según la obesidad**. Dentro de cada banda, el costo sube con la edad de forma casi lineal. Este patrón es la base del modelo de la Parte 2.
+
+## 🔢 Corrección 1: la región no es un número
+
+![Matriz de correlación](images/02_matriz_correlacion.png)
+
+Codificar `northeast = 0 … southwest = 3` hace que la "correlación" dependa del orden alfabético. La matriz corregida excluye la región. Fumar es lo más asociado al costo (0,79); la obesidad aparece baja (0,20) porque su efecto existe casi solo en fumadores, y una correlación no puede mostrar esa interacción.
+
+## 🗺️ Corrección 2: el sudeste no es más caro
+
+| Prueba | Resultado |
+|---|---|
+| ANOVA (medias) | p = 0,033 → las medias **sí** difieren |
+| Kruskal-Wallis (medianas) | p = 0,202 → el asegurado típico cuesta parecido |
+
+El sudeste tiene más fumadores (25 %) y más obesidad (67 %). Comparando **a igual edad, tabaquismo, obesidad e hijos**:
+
+![Región ajustada](images/03_region_ajustada.png)
+
+Sin ajustar, el sudeste cuesta **+$1.329** más que el noreste; a igual perfil, cuesta **−$780** (IC 95 %: −$1.518 a −$42). La región no encarece el seguro: lo hace la **composición de riesgo**, un caso de paradoja de Simpson.
 
 ## 🗂️ Estructura del repositorio
 
 ```
-insurance-project/
+medical-insurance-project/
 ├── data/
-│   ├── insurance.csv           # Dataset original
-│   └── insurance_cleaned.csv   # Dataset limpio y transformado (output del script)
-├── images/                     # Gráficos generados por el script
-├── src/
-│   └── data_cleaning_and_analysis.py
+│   ├── insurance.csv            # Dataset original
+│   └── insurance_cleaned.csv    # Dataset limpio (generado por el notebook)
+├── images/                      # Gráficos de la versión 2
+├── notebooks/
+│   └── analisis_exploratorio_seguros_v2.ipynb
+├── version_original/            # Scripts y gráficos de la versión 1
 ├── requirements.txt
+├── LICENSE
 └── README.md
 ```
 
-## 📊 Dataset
-
-El dataset contiene **1,338 registros** con las siguientes columnas:
-
-| Columna    | Descripción                                  |
-|------------|-----------------------------------------------|
-| `age`      | Edad del asegurado                            |
-| `sex`      | Sexo (male / female)                          |
-| `bmi`      | Índice de masa corporal                       |
-| `children` | Número de hijos/dependientes                  |
-| `smoker`   | ¿Fuma? (yes / no)                             |
-| `region`   | Región de residencia en EE.UU.                |
-| `charges`  | Costo del seguro médico ($)                   |
-
-## 🧹 Proceso de limpieza
-
-1. **Duplicados:** se detectó y eliminó 1 fila completamente duplicada.
-2. **Valores faltantes:** no se encontraron valores nulos en el dataset.
-3. **Validación de rangos:** se verificó que `age`, `bmi` y `charges` no tuvieran valores negativos o inválidos.
-4. **Estandarización:** columnas categóricas normalizadas a minúsculas.
-
-## 🔢 Transformación de variables
-
-- **Label Encoding** para `sex` y `smoker` (variables binarias).
-- **One-Hot Encoding** para `region` (variable nominal con 4 categorías).
-- Variable derivada **`age_group`** (young / middle / senior) para facilitar el análisis por segmentos.
-
-## 📈 Principales insights
-
-- El **hábito de fumar** es el factor con mayor correlación con el costo del seguro (correlación ≈ 0.79).
-- El costo promedio de un **fumador** es más de **3.5 veces** el de un no fumador.
-- El costo promedio del seguro aumenta de forma consistente con la edad.
-- No se observan diferencias significativas en el costo promedio entre regiones.
-
-### Ejemplos de visualizaciones
-
-| Costo por hábito de fumar | Edad vs. Costo del seguro |
-|---|---|
-| ![Fumadores vs no fumadores](images/02_charges_por_fumador.png) | ![Edad vs charges](images/03_edad_vs_charges.png) |
-
-| Matriz de correlación |
-|---|
-| ![Correlación](images/07_matriz_correlacion.png) |
-
-## 🚀 Cómo ejecutar el proyecto
+## ▶️ Cómo reproducirlo
 
 ```bash
-# Clonar el repositorio
-git clone https://github.com/Cristobal-111/insurance-project.git
-cd insurance-project
-
-# Instalar dependencias
+git clone https://github.com/Cristobal-111/medical-insurance-project.git
+cd medical-insurance-project
 pip install -r requirements.txt
-
-# Ejecutar el script
-python src/data_cleaning_and_analysis.py
+jupyter notebook notebooks/analisis_exploratorio_seguros_v2.ipynb
 ```
 
-El script imprime en consola cada paso del análisis, guarda el dataset limpio en `data/insurance_cleaned.csv` y genera 7 gráficos en la carpeta `images/`.
+## ⚠️ Limitaciones
 
-## 🛠️ Tecnologías utilizadas
+- Datos de EE. UU. con fines educativos; sin identificador de asegurado ni historial clínico.
+- Las diferencias ajustadas son asociaciones, no efectos causales.
 
-- Python (Pandas, NumPy)
-- Matplotlib / Seaborn
-- Jupyter / VS Code
+## 📚 Fuente de datos
+
+[Medical Cost Personal Datasets — Kaggle](https://www.kaggle.com/datasets/mirichoi0218/insurance) · basado en *Machine Learning with R* (Brett Lantz).
+
+Proyecto desarrollado en el marco del **Google Advanced Data Analytics Professional Certificate**.
 
 ## 👤 Autor
 
-**Cristóbal Rojas Troncoso**
-Ingeniero Civil Industrial | Business Intelligence & Data Analytics
-[LinkedIn](https://linkedin.com/in/cristobal-rojas-troncoso) · [GitHub](https://github.com/Cristobal-111)
-
----
-*Proyecto desarrollado como práctica personal en el marco del Google Advanced Data Analytics Professional Certificate.*
+**Cristóbal Rojas Troncoso** · Ingeniero Civil Industrial | Inteligencia de negocios y análisis de datos
+[LinkedIn](https://www.linkedin.com/in/cristobal-rojas-troncoso/) · [GitHub](https://github.com/Cristobal-111)
